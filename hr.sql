@@ -2217,10 +2217,293 @@ ORDER BY dept_code
 ;
 
 
+-- PIVOT
+-- : 그룹화할 행 데이터를 열로 바꾸어서 출력하는 함수
+
+SELECT dept_code, job_code
+     , LISTAGG(emp_name, ', ')
+     WITHIN GROUP(ORDER BY salary DESC) "부서별 사원목록"
+     , MAX(salary) 최대급여
+FROM employee
+GROUP BY dept_code, job_code
+ORDER BY dept_code, job_code
+;
+
+
+-- PIVOT 함수를 이용해서 직급은 행에, 부서는 열에 그룹화하여 최고급여를 출력하시오.
+SELECT *
+FROM (
+    SELECT dept_code, job_code, salary
+    FROM employee
+    )
+    PIVOT(
+        MAX(salary)
+        -- 컬럼으로 올릴 속성들
+        FOR dept_code IN('D1','D2','D3','D4','D5','D6','D7','D8','D9')
+        )
+ORDER BY job_code;
+
+
+SELECT *
+FROM (
+    SELECT dept_code, job_code, salary
+    FROM employee
+    )
+    PIVOT(
+        MAX(salary)
+        -- 컬럼으로 올릴 속성들
+        FOR job_code IN('J1','J2','J3','J4','J5','J6','J7')
+        )
+ORDER BY dept_code;
+
+-- UNPIVOT
+-- : 그룹화된 결과인 열을 행 데이터로 바꾸어 출력하는 함수
+SELECT *
+FROM (
+        SELECT dept_code
+             , MAX(DECODE(job_code, 'J1', salary)) J1 -- "대표 최대급여"
+             , MAX(DECODE(job_code, 'J2', salary)) J2 -- "부사장 최대급여"
+             , MAX(DECODE(job_code, 'J3', salary)) J3 -- "부장 최대급여"
+             , MAX(DECODE(job_code, 'J4', salary)) J4 -- "차장 최대급여"
+             , MAX(DECODE(job_code, 'J5', salary)) J5 -- "과장 최대급여"
+             , MAX(DECODE(job_code, 'J6', salary)) J6 -- "대리 최대급여"
+             , MAX(DECODE(job_code, 'J7', salary)) J7 -- "사원최대급여"
+        FROM employee
+        GROUP BY dept_code
+        ORDER BY dept_code
+    )
+    UNPIVOT(
+        salary
+        FOR job_code IN( J1, J2, J3, J4, J5, J6, J7)
+    )
+;
+
+-- 조인(176p~
+
+-- 내부조인
+--  동등조인 : 등호(+)연산자를 사용하여 2개 이상의 테이블을 조합하여 조회하는 방식
+SELECT e.emp_name, d.dept_title, e.salary
+  FROM employee e
+     , department d
+WHERE e.dept_code = d.dept_id;
+
+-- INNER JOIN (동등조인과 대응)
+SELECT e.emp_name, d.dept_title, e.salary
+  FROM employee e
+       INNER JOIN department d ON (e.dept_code = d.dept_id);
+
+--  세미조인 : 서브 쿼리에 존재하는 데이터만 메인 쿼리에서 추출하여 출력하는 방식
+--           * IN 또는 EXISTS 연산자를 사용한 조인
+--          급여가 300000 이상인 부서를 출력하시오.
+SELECT *
+FROM department d
+WHERE EXISTS (
+                SELECT *
+                FROM employee e
+                WHERE e.dept_code = d.dept_id
+                  AND salary >= 3000000
+             )
+;
+                  
+SELECT *
+FROM department d
+WHERE dept_id  IN ( 
+                    SELECT dept_code
+                    FROM employee e
+                    WHERE e.dept_code = d.dept_id
+                    AND salary >= 3000000
+               )
+;
+--  안티조인 : 서브 쿼리에 존재하는 데이터만 제외하고, 메인 쿼리에서 추출하여 조회하는 방식
+SELECT *
+FROM department d
+WHERE NOT EXISTS (
+                SELECT *
+                FROM employee e
+                WHERE e.dept_code = d.dept_id
+                  AND salary >= 3000000
+             )
+;
+                  
+SELECT *
+FROM department d
+WHERE dept_id NOT IN ( 
+                    SELECT dept_code
+                    FROM employee e
+                    WHERE e.dept_code = d.dept_id
+                    AND salary >= 3000000
+               )
+;
+--  셀프조인 : 동일한 하나의 테이블을 2번 이상 조합하여 출력하는 방식
+
+-- 같은 부서의 사원에 대한 매니저를 출력하시오.
+SELECT b.emp_id 사원번호
+    , b.emp_name 사원명
+    , a.emp_name 매니저명
+FROM employee a,
+     employee b
+WHERE a.emp_id = b.manager_id
+  AND a.dept_code = b.dept_code
+;
+
+-- 외부 조인(OUTER JOIN)
+-- LEFT OUTER JOIN : 왼쪽 테이블을 먼저 읽어들인 후, 
+--                   조인 조건에 일치하는 오른쪽 테이블도 함꼐 조회하는 것
+--                  * 조건에 불일치하는 오른쪽 테이블은 NULL로 조회된다.
+-- 1) ANSI 조인
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e LEFT OUTER JOIN department d
+               ON e.dept_code = d.dept_id
+;
+
+-- 2) 기존 조인 : 조인 조건에서 데이터가 없는 테이블의 컬럼에(+) 기호를 붙여준다
+-- WHERE A.공통컬럼 = B.공통컬럼(+);
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e 
+    ,department d
+WHERE e.dept_code = d.dept_id (+);
 
 
 
-        
+-- RIGHT OUTER JOIN :오른쪽 테이블을 먼저 읽어들인 후,
+--                   조인 조건에 일치하는 왼쪽 테이블도 함꼐 조회하는 것
+--                  * 조건에 불일치하는 왼쪽 테이블은 NULL로 조회된다.
+-- 1) ANSI 조인
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e right OUTER JOIN department d
+               ON e.dept_code = d.dept_id
+;
+
+-- 2) 기존 조인 : 조인 조건에서 데이터가 없는 테이블의 컬럼에(+) 기호를 붙여준다
+-- WHERE A.공통컬럼(+) = B.공통컬럼;
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e 
+    ,department d
+WHERE e.dept_code(+) = d.dept_id ;
+
+
+-- FULL OUTER JOIN
+-- : 조인 조건에 일치하는 왼쪽 테이블과 오른쪽 테이블의 교집합이 되는 데이터
+--  - 조인 조건에 일치하지 않는 왼쪽 테이블 데이터(오른쪽 테이블 데이터 NULL)
+--  - 조인 조건에 일치하지 않는 오른쪽 테이블 데이터(왼쪽 테이블 데이터 NULL)
+
+-- *ANSI 조인만 있다.
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e FULL OUTER JOIN department d
+                ON e.dept_code = d.dept_id;
+
+SELECT e.emp_id
+     , e.emp_name
+     , d.dept_id
+     , d.dept_title
+FROM employee e 
+    ,department d
+WHERE e.dept_code(+) = d.dept_id(+); --불가능
+
+-- 카테시안 조인
+-- : 하나의 테이블 A와 다른 하나의 테이블 B의 모든 행을 조회하는 방식
+-- (A 행의 수) X (B행의 수) = (조회 결과의 행의 수)
+
+SELECT *
+FROM employee e
+    , department d
+;
+
+
+SELECT ROWNUM   -- 행번호 
+     , e.*
+     , d.*
+FROM employee e
+    , department d
+;
+-- CROSS 조인
+-- : 카테시안 조인은 ANSI 문법으로 사용한 조회
+SELECT *
+FROM employee e
+     cross join department d;
+/*
+PL/SQL
+SQL을 절차적으로 프로그래미잉 가능하도록 확장한 언어
+PL/SQL 기본 구조 : 블록
+블록형태
+
+DECLARE
+	필요한 요소를 선언; 		-- 선언부
+	BEGIN
+	   실행 명령어;	 	-- 실행부
+	EXCEPTION
+	예외를 처리하는 부분	-- 예외처리부
+END;
+
+------------------------
+SET SERVEROUTPUT ON; -- 실행결과 출력하도록 설정
+
+BEGIN
+    DBNS_OUTPUT.PUT_LINE('실행결과를 출력합니다.');
+END;
+/
+
+기본 문법사항
+- 블록의 부분을 지정하는 명렁어에는 ;세미콜론을 사용하지 않는다
+ (DECLARE, BEGIN, EXCEPTION)
+- 블록의 각 부분에서 실행하는 문장에는 ;세미콜론을 사용한다.
+- 한 줄주석(--), 여러줄 주석
+- PL/SQL 작성후 실행 시, 마지막에 / 를 사용
+
+
+변수와 상수
+- 변수 선언
+   변수명 데이터타입 := 값;
+
+- 상수 선언
+    상수명 CONSTANT 데이터타입 := 값;
+
+- 변수의 기본값 지정
+    변수명 데이터타입 DEFAULT 값;
+
+- 변수의 NOT NULL 지정
+    변수명 데이터타입 NOT NULL := 값;
+
+
+데이터 타입
+- 스칼라형 : NUMBER, CHAR, VARCHAR2, DATE, BOOLEAN
+- 참조형 : 이미 테이블의 정의된 컬럼의 타입을 참조
+	*변수명 테이블.컬럼%TYPE := 값;
+
+제어문
+-조건문 :  IF , CASE
+-반복문 : LOOP , WHILE LOOP , FOR LOOP
+-기타 제어문 : EXIT , CONTINUE
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
